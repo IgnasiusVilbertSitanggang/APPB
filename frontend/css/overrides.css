@@ -1,0 +1,30 @@
+/* Small fallbacks for details the Tailwind browser runtime does not emit itself.
+   The authoritative theme lives in index.html; this file only fills gaps. */
+
+:root { color-scheme: light; }
+
+[data-page] { min-width: 0; }
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-navy, #1e3a8a); cursor: pointer; }
+input[type="checkbox"][disabled], input[type="radio"][disabled] { cursor: not-allowed; }
+
+input, select, textarea { min-width: 0; }
+select.inp { padding-right: 2rem; }
+
+th.th[aria-sort="ascending"], th.th[aria-sort="descending"] { color: var(--color-navy); }
+
+[role="tooltip"] { z-index: 80; }
+
+/* Keep the schematic map labels readable when Tailwind utilities are still compiling. */
+svg text { font-family: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
