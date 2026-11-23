@@ -1,0 +1,114 @@
+RINGKASAN KONFIGURASI WEBSITE APPB (HASIL MIGRASI)
+===================================================
+
+LOKASI
+  Proyek lama : Downloads/Telegram Desktop/High-Fidelity Website Mockup
+                 (src/ React + Vite sengaja tidak diubah)
+  Migrasi     : <proyek lama>/migrasi
+
+TEKNOLOGI (JALUR AKTIF)
+  Frontend : HTML + ES modules + vanilla JS + CSS, tanpa build step
+             Tailwind v4 browser runtime + Lucide di-vendor lokal
+             di frontend/vendor/ (tanpa CDN JS saat runtime)
+             Tema utama: frontend/index.html; fallback: css/overrides.css
+  Backend  : API Python tools/local_api.py + adapter tools/ken_store.py
+  Database : PostgreSQL 16 appb_db, diimpor dari dump branch ken
+             oleh tools/import_ken_sql.py (~/Downloads/basisdata/)
+  Web server: Nginx lokal (port 8081) + proxy /api; pgAdmin 4 (port 8082)
+  Opsional : Java 21 + Spring Boot 3.3.5 + MySQL 8 lewat docker compose
+             (tidak aktif / tidak diverifikasi di lingkungan ini)
+
+PORT (AKTIF)
+  Frontend : 8081 -> http://localhost:8081/
+  API      : 8080 -> http://127.0.0.1:8080/api/health
+  PostgreSQL:5432 -> dbname=appb_db user=appb (APPB_DB_DSN)
+  pgAdmin  : 8082 -> http://localhost:8082/pgadmin4/
+                     admin@appb.com / appb2026
+                     server "APPB PostgreSQL": 127.0.0.1:5432,
+                     db appb_db, user appb, password appb_pass
+
+KONEKSI DATABASE
+  APPB_DB_DSN default:
+    dbname=appb_db user=appb password=appb_pass host=127.0.0.1 port=5432
+  Tabel asli branch ken: laporan_bencana, admin/petugas/relawan, bencana,
+  pengumuman, log_penanganan, bantuan, data_historis, foto,
+  pembaruan_laporan, provinsi/kota/kecamatan/kelurahan.
+  Tabel tambahan UI: laporan_meta, app_settings, imports.
+  bcrypt asli -> password_original; kolom password = PBKDF2 "appb2026".
+  log_penanganan.id_laporan tidak UNIQUE; trigger menolak UPDATE/DELETE.
+
+API BASE FRONTEND (frontend/index.html + js/config.js)
+  Default : /api (same-origin; nginx.local.conf mem-proxy /api/ ke :8080)
+  Opsi 1  : buka http://localhost:8081/ -> langsung memakai /api
+  Opsi 2  : frontend statis tanpa proxy, buka sekali:
+            http://localhost:8081/?apiBase=http://localhost:8080/api
+            nilai tersimpan di localStorage.appb-api-base
+  Prioritas: window.APPB_API_BASE > query ?apiBase > localStorage > '/api'
+
+DATA BRANCH KEN
+  25 laporan, 14 user (2 admin, 6 petugas, 6 relawan), 8 bencana,
+  4 pengumuman, 20 log, 6 bantuan, 5 historis, 26 foto,
+  38 provinsi, 514 kota, 7.285 kecamatan, 83.762 kelurahan,
+  19 pengaturan tema.
+  Login demo (kata sandi appb2026):
+    a1  admin_demo           admin
+    u1  petugas_medan_demo   petugas
+    u7  relawan_medan_demo   relawan
+  u8 nonaktif -> 403. Id relawan ken 1..6 dipetakan ke u7..u12.
+
+CARA JALANKAN (AKTIF, TANPA JAVA)
+  cd migrasi
+  python3 tools/import_ken_sql.py       # sekali / reset data; drop tabel legacy
+  python3 tools/generate_wilayah.py     # wilayah.js dari 83.762 kelurahan ken
+  # Disarankan: pasang service systemd agar API auto-start & auto-restart
+  sudo ln -sfn "$PWD" /opt/appb-migrasi
+  sudo cp tools/appb-api.service /etc/systemd/system/appb-api.service
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now appb-api.service
+  # Alternatif manual (jangan bersamaan dengan service):
+  # bash tools/start_local.sh --start
+  sudo ln -sfn "$PWD/nginx.local.conf" /etc/nginx/conf.d/appb-local.conf
+  sudo nginx -t && sudo systemctl reload nginx
+  buka http://localhost:8081/ atau http://localhost:8081/admin/konfigurasi
+  admin: a1 / appb2026
+  reset: jalankan import_ken_sql.py, generate_wilayah.py, lalu
+         sudo systemctl restart appb-api.service
+
+JALUR DOCKER / JAVA / MYSQL: DINONAKTIFKAN
+  db/mysql/seed.sql, backend/src/main/resources/data.sql, dan
+  tools/postgres_bootstrap.py sudah dihapus. Spring SQL init dimatikan.
+  Satu-satunya sumber data = dump branch ken di ~/Downloads/basisdata/.
+
+PUSH REPO PRIVATE
+  cd migrasi
+  git remote set-url origin git@github.com:FahriAkbarPutra/APPB-Private.git
+  git add -A && git commit -m "Perbarui migrasi APPB dengan database branch ken"
+  git push -u origin HEAD
+  (akses HTTPS ke repo private 404; SSH terautentikasi sbg FahriAkbarPutra)
+
+ATURAN YANG DIPERTAHANKAN
+  - Duplikat laporan aktif (jenis + kel) menolak kiriman publik -> 409
+  - Alasan tolak min. 10 karakter; ringkasan penutupan min. 30 karakter
+  - Relawan tidak boleh verifikasi, tutup, atau tandai Tidak Perlu Tindak Lanjut
+  - Case Closed terkunci kecuali koreksi admin (alasan min. 15 karakter)
+  - Log audit append-only (trigger PostgreSQL); catatan lapangan lewat
+    /api/reports/{code}/catatan
+  - Sesi di sessionStorage.appb-session; device id di localStorage.appb-device
+  - Pencarian global, polling 10 detik, banner koneksi tidak stabil
+  - Error API: { timestamp, status, error, message }
+
+CATATAN VERIFIKASI
+  Jalur aktif sudah diuji: py_compile, static check JS PASS, health DB,
+  login benar/salah/nonaktif, ganti password persisten, tema persisten,
+  POST laporan 201 + duplikat 409, trigger append-only, dan seluruh rute
+  Firefox headless tanpa error JS. Data uji sudah dibersihkan.
+  Login UI demo dan manual untuk petugas/relawan/admin berhasil tanpa popup error.
+Service appb-api.service diuji auto-restart setelah PID dibunuh.
+Jika muncul 502 / popup "Tidak dapat terhubung ke server":
+  systemctl status appb-api.service
+  curl http://127.0.0.1:8080/api/health
+  sudo tail -20 /var/log/nginx/error.log
+Seed dummy dihapus: 10 tabel legacy tidak ada lagi; wilayah.js berisi seluruh
+38 provinsi / 514 kabupaten / 7.285 kecamatan / 83.762 kelurahan dari ken.
+Jalur Docker/Java/MySQL tidak lagi diverifikasi (seed sengaja dihapus).
+  Rincian: docs/CONFIGURASI.md; endpoint: docs/API.md; status: docs/STATUS-MIGRASI.md

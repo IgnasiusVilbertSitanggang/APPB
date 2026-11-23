@@ -1,0 +1,27 @@
+[Unit]
+Description=APPB migration local API (Java Spring + PostgreSQL branch ken)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/appb-migrasi/backend
+Environment="TZ=UTC"
+Environment="DB_HOST=127.0.0.1"
+Environment="DB_PORT=5432"
+Environment="DB_NAME=appb_db"
+Environment="DB_USER=appb"
+Environment="DB_PASSWORD=appb_pass"
+Environment="SERVER_PORT=8080"
+Environment="CORS_ORIGINS=*"
+Environment="PGPASSWORD=appb_pass"
+ExecStartPre=/bin/sh -c '/usr/bin/psql -h 127.0.0.1 -U appb -d appb_db -v ON_ERROR_STOP=1 -f /opt/appb-migrasi/tools/ken_compat.sql > /tmp/opencode/ken_compat-systemd.log 2>&1'
+ExecStart=/usr/bin/java -Duser.timezone=UTC -jar /opt/appb-migrasi/backend/target/appb-backend-1.0.0.jar
+Restart=always
+RestartSec=3
+StandardOutput=append:/tmp/opencode/appb-api-systemd.log
+StandardError=append:/tmp/opencode/appb-api-systemd.log
+
+[Install]
+WantedBy=multi-user.target
